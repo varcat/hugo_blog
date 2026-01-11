@@ -1,5 +1,5 @@
 # Change baseurl before deploy
-baseurl = "https://wangshunping.cn"
+baseurl = "https://github.com/varcat/hugo_blog"
 languageCode = "zh-cn"
 title = "Hugo Theme Stack Starter"
 
