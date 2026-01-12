@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Network on varcat</title><link>https://varcat.github.io/hugo_blog/zh-cn/tags/network/</link><description>Recent content in Network on varcat</description><generator>Hugo -- gohugo.io</generator><language>zh-cn</language><lastBuildDate>Mon, 12 Jan 2026 22:00:00 +0800</lastBuildDate><atom:link href="https://varcat.github.io/hugo_blog/zh-cn/tags/network/index.xml" rel="self" type="application/rss+xml"/><item><title>frp 内网穿透</title><link>https://varcat.github.io/hugo_blog/zh-cn/p/frp/</link><pubDate>Mon, 12 Jan 2026 22:00:00 +0800</pubDate><guid>https://varcat.github.io/hugo_blog/zh-cn/p/frp/</guid><description>&lt;h2 id="前言"&gt;前言
+&lt;/h2&gt;&lt;p&gt;作为一名程序员，我家里折腾了一台性能强劲的 NAS，但受限于内网环境，出门就成了“断线鱼”。虽然手里有一台云服务器，但那点可怜的 CPU 和内存资源，跑个大型服务实在吃力。&lt;/p&gt;
+&lt;p&gt;最好的方案莫过于：云服务器只做“路牌”，把流量转发到家里的“性能猛兽”上。&lt;/p&gt;
+&lt;p&gt;在对比了多种工具后，我最终选择了 frp。它轻量、稳定且配置极简，完美解决了我的内网穿透需求。今天就把这套“云端中转 + 本地高配”的搭建方案分享给大家。&lt;/p&gt;
+&lt;h2 id="为什么选择-frp"&gt;为什么选择 frp？
+&lt;/h2&gt;&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;方案&lt;/th&gt;
+&lt;th&gt;优点&lt;/th&gt;
+&lt;th&gt;缺点&lt;/th&gt;
+&lt;th&gt;适用人群&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;DDNS (域名解析)&lt;/td&gt;
+&lt;td&gt;原生速度快，无中转延迟&lt;/td&gt;
+&lt;td&gt;必须有公网 IP，受限于运营商&lt;/td&gt;
+&lt;td&gt;有公网 IP 的技术大牛&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;商业工具 (如花生壳)&lt;/td&gt;
+&lt;td&gt;傻瓜式操作，无需服务器&lt;/td&gt;
+&lt;td&gt;免费版带宽极低、限制流量、不安全&lt;/td&gt;
+&lt;td&gt;零基础小白&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;VPN (如 Tailscale)&lt;/td&gt;
+&lt;td&gt;安全性极高，无需中转机&lt;/td&gt;
+&lt;td&gt;需安装客户端，难实现公网直接访问&lt;/td&gt;
+&lt;td&gt;纯私人远程办公&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;frp (自主搭建)&lt;/td&gt;
+&lt;td&gt;支持全协议、高度自定义、稳定高效&lt;/td&gt;
+&lt;td&gt;需准备一台公网 VPS&lt;/td&gt;
+&lt;td&gt;追求极致体验的玩家&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id="frp-工作原理简析"&gt;frp 工作原理简析
+&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;角色分配：
+&lt;ul&gt;
+&lt;li&gt;frps (Server)： 部署在公网服务器，负责监听和转发。&lt;/li&gt;
+&lt;li&gt;frpc (Client)： 部署在内网机器，负责发起连接。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;流量走向： 用户请求 -&amp;gt; 公网服务器 (frps) -&amp;gt; 隧道 -&amp;gt; 内网设备 (frpc) -&amp;gt; 本地服务。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="准备工作"&gt;准备工作
+&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;硬件： 一台带公网 IP 的 VPS（云服务器）。&lt;/li&gt;
+&lt;li&gt;软件： frp &lt;a class="link" href="https://github.com/fatedier/frp/releases" target="_blank" rel="noopener"
+&gt;GitHub Release&lt;/a&gt; 下载对应架构的包。&lt;/li&gt;
+&lt;li&gt;环境： 确认服务器防火墙已放行对应端口（如 7000, 80/443 等）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="实战配置步骤"&gt;实战配置步骤
+&lt;/h2&gt;&lt;h3 id="服务端配置-frpstoml"&gt;服务端配置 (frps.toml)
+&lt;/h3&gt;&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;设置绑定端口。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;安全加固： 设置 auth.token（防止别人蹭你的服务器）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;span class="lnt"&gt;8
+&lt;/span&gt;&lt;span class="lnt"&gt;9
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-toml" data-lang="toml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;bindPort&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;7000&lt;/span&gt; &lt;span class="c"&gt;# 默认端口&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;auth&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;token&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;your-secure-token&amp;#34;&lt;/span&gt; &lt;span class="c"&gt;# 自定义token，建议设置为复杂字符串&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;transport&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;tcpMuxKeepaliveInterval&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;60&lt;/span&gt; &lt;span class="c"&gt;# tcp mux 的心跳检查间隔时间，单位秒&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# 端口限制（可选，提升安全性）&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;allowPorts&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="p"&gt;{&lt;/span&gt; &lt;span class="nx"&gt;start&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;10000&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;end&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;100010&lt;/span&gt; &lt;span class="p"&gt;},&lt;/span&gt; &lt;span class="c"&gt;# 允许 10000-100010 端口&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="p"&gt;{&lt;/span&gt; &lt;span class="nx"&gt;single&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;3306&lt;/span&gt; &lt;span class="p"&gt;},&lt;/span&gt; &lt;span class="c"&gt;# 允许 3306 端口&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h3 id="客户端配置-frpctoml"&gt;客户端配置 (frpc.toml)
+&lt;/h3&gt;&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt; 1
+&lt;/span&gt;&lt;span class="lnt"&gt; 2
+&lt;/span&gt;&lt;span class="lnt"&gt; 3
+&lt;/span&gt;&lt;span class="lnt"&gt; 4
+&lt;/span&gt;&lt;span class="lnt"&gt; 5
+&lt;/span&gt;&lt;span class="lnt"&gt; 6
+&lt;/span&gt;&lt;span class="lnt"&gt; 7
+&lt;/span&gt;&lt;span class="lnt"&gt; 8
+&lt;/span&gt;&lt;span class="lnt"&gt; 9
+&lt;/span&gt;&lt;span class="lnt"&gt;10
+&lt;/span&gt;&lt;span class="lnt"&gt;11
+&lt;/span&gt;&lt;span class="lnt"&gt;12
+&lt;/span&gt;&lt;span class="lnt"&gt;13
+&lt;/span&gt;&lt;span class="lnt"&gt;14
+&lt;/span&gt;&lt;span class="lnt"&gt;15
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-toml" data-lang="toml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# 基本配置&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;serverAddr&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;&amp;#34;&lt;/span&gt; &lt;span class="c"&gt;# 公网服务器 IP 或域名&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;serverPort&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;7000&lt;/span&gt; &lt;span class="c"&gt;# 公网服务器端口，需与 bindPort 一致&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;auth&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;token&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;your-secure-token&amp;#34;&lt;/span&gt; &lt;span class="c"&gt;# 与服务端配置一致&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# 基础传输优化&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;transport&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;tcpMux&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="kc"&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;transport&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;tcpMuxKeepaliveInterval&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;60&lt;/span&gt; &lt;span class="c"&gt;# tcp mux 的心跳检查间隔时间，单位秒&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# tcp 传输&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="p"&gt;[[&lt;/span&gt;&lt;span class="nx"&gt;proxies&lt;/span&gt;&lt;span class="p"&gt;]]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;name&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;ssh&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;type&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;tcp&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;localPort&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;22&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nx"&gt;remotePort&lt;/span&gt; &lt;span class="p"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;8001&lt;/span&gt; &lt;span class="c"&gt;# ssh -p 8001 user@serverAddr&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;h2 id="常见问题排查-faq"&gt;常见问题排查 (FAQ)
+&lt;/h2&gt;&lt;h3 id="连接超时-timeout"&gt;连接超时 (Timeout)
+&lt;/h3&gt;&lt;p&gt;&lt;strong&gt;现象&lt;/strong&gt;：客户端启动时提示 &lt;code&gt;login to server failed: dial tcp x.x.x.x:7000: i/o timeout&lt;/code&gt;。
+&lt;strong&gt;原因&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;服务器防火墙未放行 &lt;code&gt;bindPort&lt;/code&gt; (默认 7000)。&lt;/li&gt;
+&lt;li&gt;云服务商的安全组未开放对应端口。&lt;/li&gt;
+&lt;li&gt;服务器 IP 地址填写错误。
+&lt;strong&gt;解决&lt;/strong&gt;：&lt;/li&gt;
+&lt;li&gt;检查服务器防火墙设置 (如 &lt;code&gt;ufw&lt;/code&gt;, &lt;code&gt;iptables&lt;/code&gt;)。&lt;/li&gt;
+&lt;li&gt;登录云服务商控制台，检查安全组规则，确保 TCP 7000 端口已放行。&lt;/li&gt;
+&lt;li&gt;确认客户端配置中的 &lt;code&gt;serverAddr&lt;/code&gt; 是否正确。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="认证失败-authorization-failed"&gt;认证失败 (Authorization Failed)
+&lt;/h3&gt;&lt;p&gt;&lt;strong&gt;现象&lt;/strong&gt;：提示 &lt;code&gt;login to server failed: authorization failed&lt;/code&gt;。
+&lt;strong&gt;原因&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;客户端和服务端的 &lt;code&gt;auth.token&lt;/code&gt; 不一致。&lt;/li&gt;
+&lt;li&gt;时间不同步 (frp 对客户端和服务端的时间差有要求，默认允许偏差 15 分钟)。
+&lt;strong&gt;解决&lt;/strong&gt;：&lt;/li&gt;
+&lt;li&gt;确保 &lt;code&gt;frps.toml&lt;/code&gt; 和 &lt;code&gt;frpc.toml&lt;/code&gt; 中的 &lt;code&gt;auth.token&lt;/code&gt; 完全一致。&lt;/li&gt;
+&lt;li&gt;检查服务器和客户端的系统时间，必要时进行时间同步 (NTP)。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="连接被拒绝-connection-refused"&gt;连接被拒绝 (Connection Refused)
+&lt;/h3&gt;&lt;p&gt;&lt;strong&gt;现象&lt;/strong&gt;：提示 &lt;code&gt;dial tcp x.x.x.x:7000: connect: connection refused&lt;/code&gt;。
+&lt;strong&gt;原因&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;服务端 (frps) 未启动或已停止运行。&lt;/li&gt;
+&lt;li&gt;服务端监听端口不是 7000。
+&lt;strong&gt;解决&lt;/strong&gt;：&lt;/li&gt;
+&lt;li&gt;在服务器上执行 &lt;code&gt;ps aux | grep frps&lt;/code&gt; 检查进程是否存在。&lt;/li&gt;
+&lt;li&gt;检查服务端配置文件 &lt;code&gt;frps.toml&lt;/code&gt; 中的 &lt;code&gt;bindPort&lt;/code&gt; 设置，确保与客户端一致。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="端口已被占用-port-already-in-use"&gt;端口已被占用 (Port Already In Use)
+&lt;/h3&gt;&lt;p&gt;&lt;strong&gt;现象&lt;/strong&gt;：启动时提示 &lt;code&gt;port already in use&lt;/code&gt;。
+&lt;strong&gt;原因&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;指定的端口 (如 7000 或远程映射端口) 已经被其他程序占用。&lt;/li&gt;
+&lt;li&gt;frp 进程重复启动。
+&lt;strong&gt;解决&lt;/strong&gt;：&lt;/li&gt;
+&lt;li&gt;使用 &lt;code&gt;netstat -tunlp | grep &amp;lt;端口号&amp;gt;&lt;/code&gt; 查找占用端口的进程。&lt;/li&gt;
+&lt;li&gt;修改配置文件中的端口号，或结束占用端口的进程。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="结语"&gt;结语
+&lt;/h2&gt;&lt;p&gt;通过以上配置，我们成功打通了公网与内网的阻隔，无论是远程管理 NAS、访问内部 Web 服务，还是调试本地代码，frp 都能提供稳定高效的支持。&lt;/p&gt;
+&lt;p&gt;相比于其他方案，frp 虽然有一定的配置门槛，但其带来的灵活性和高性能体验是无可比拟的。希望这篇文章能帮你快速上手，搭建属于自己的内网穿透服务，尽情释放本地设备的强大潜能！&lt;/p&gt;</description></item></channel></rss>
