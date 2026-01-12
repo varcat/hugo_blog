@@ -1,0 +1,15 @@
+# Rename this file to languages.toml to enable multilingual support
+
+[zh-cn]
+languageName = "简体中文"
+languagedirection = "ltr"
+title = "varcat"
+weight = 1
+timeZone = 'Asia/Shanghai'
+hasCJKLanguage = true
+
+[en]
+languageName = "English"
+languagedirection = "ltr"
+title = "Example Site"
+weight = 2

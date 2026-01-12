@@ -1,11 +1,12 @@
 ---
-title: "归档"
+title: "简历"
 date: 2022-03-06
-layout: "archives"
-slug: "archives"
+layout: "resume"
+slug: "resume"
+comments: false
 menu:
     main:
-        weight: 3
+        weight: 2
         params: 
             icon: archives
 ---
