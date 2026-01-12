@@ -98,8 +98,6 @@ ssh-copy-id -i ~/.ssh/id_ed25519.pub user@<服务器IP>
 cat ~/.ssh/id_rsa.pub | ssh user@your_vps_ip "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
 ```
 
-**注意:** 先别关当前的ssh窗口，新开一个ssh测试一下能不能用密钥登录成功。**确认能登录后**，再继续下一步。
-
 ### 修改 SSH 配置文件
 
 编辑 `/etc/ssh/sshd_config`，做以下几个关键修改：
@@ -132,6 +130,7 @@ AllowUsers user
 ```bash
 sudo systemctl restart sshd
 ```
+**注意:** 先别关当前的ssh窗口，新开一个ssh测试一下能不能用密钥登录成功。
 
 这时候，绝大多数的扫描脚本因为连不上 22 端口，就已经放弃你的服务器了。
 
