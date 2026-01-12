@@ -16,9 +16,9 @@ tags:
 
 我手头这台阿里云 ECS 实例平时主要用于托管博客和运行 Docker 服务，此前并未在安全配置上投入太多精力。
 
-直到最近偶然查看系统日志时，才发现 `/var/log/secure` 中充斥着密密麻麻的 `Failed password for root` 记录。经溯源分析，这些恶意登录尝试来自全球各地。面对这数万条暴力破解记录，我不禁对服务器的处境感到担忧——暴露在公网环境下的服务器，实际上正时刻经受着各类自动化脚本的无差别扫描与攻击。
+直到最近偶然查看系统日志时，才发现 `/var/log/secure` 中充斥着密密麻麻的 `Failed password for root` 记录。经溯源分析，这些恶意登录尝试来自全球各地。面对这数万条暴破记录，我不禁对服务器的处境感到担忧——暴露在公网环境下的服务器，实际上正时刻经受着各类自动化脚本的无差别扫描与攻击。
 
-尽管我设置了高强度的复杂密码，但这种被持续“盯上”的潜在风险始终令人不安。一旦防御被突破，服务器上的数据安全将无从谈起。
+尽管我设置了高强度的复杂密码，但这种被持续盯上的潜在风险始终令人不安。一旦防御被突破，服务器上的数据安全将无从谈起。
 
 因此，我特意抽出时间对服务器进行了全面的安全加固。本文将详细记录这一整改过程，希望能为同样运行着公网服务器的朋友们提供一份实用的安全参考。
 
@@ -31,22 +31,29 @@ tags:
 这是最关键的，先确认“处境”。使用 `last` 命令查看最近成功的登录记录：
 
 ```bash
-last
+# 提取所有登录 IP，过滤掉本地登录和无效干扰
+last -i | awk '{print $3}' | grep -E "([0-9]{1,3}\.){3}[0-9]{1,3}" | sort | uniq -c | sort -nr
 ```
 
 重点看有没有陌生的 IP 地址。如果是自己不认识的 IP，那说明已经被攻破了，这时候重装系统可能是最稳妥的选择。好在我查了一圈，除了我自己的 IP，没有别的成功记录。
 
 ### 看看是谁在敲门
 
-看看那些失败的尝试都来自哪里。可以使用以下命令统计一下攻击者的 Top 10 IP：
+看看那些失败的尝试都来自哪里。可以使用以下命令统计一下攻击者的 IP：
 
 ```bash
-# CentOS/RHEL 系通常在 /var/log/secure
-# Ubuntu/Debian 系通常在 /var/log/auth.log
-grep "Failed password" /var/log/secure | awk '{print $(NF-3)}' | sort | uniq -c | sort -nr | head -n 10
+# 统计所有失败 IP (按次数排序) entOS/RHEL 系通常在 /var/log/secure
+grep "Failed password" /var/log/auth.log | awk '{print $(NF-3)}' | sort | uniq -c | sort -nr
+# 统计“不存在的用户”登录尝试
+grep "Invalid user" /var/log/auth.log | awk '{print $10}' | sort | uniq -c | sort -nr
+
+# Debian 12 及以后 统计密码错误登录失败的 IP
+journalctl _SYSTEMD_UNIT=ssh.service | grep "Failed password" | awk '{print $(NF-3)}' | sort | uniq -c | sort -nr
+# 统计不存在用户登录尝试的 IP
+journalctl _SYSTEMD_UNIT=ssh.service | grep "Invalid user" | awk '{print $10}' | sort | uniq -c | sort -nr
 ```
 
-跑完这个命令，看着那些成百上千的数字，你会有动力的。
+跑完命令，看着那些成百上千的数字，你会有动力的。
 
 ## 第二步：基础加固，把门焊死
 
@@ -80,11 +87,18 @@ ssh-keygen -t ed25519 -C "your_email@example.com"
 
 然后把公钥传到服务器上：
 
+* 方法一：使用 ssh-copy-id（最推荐，最省心）
+这是最标准的工具，它会自动处理目录创建、权限设置和内容追加。
 ```bash
 ssh-copy-id -i ~/.ssh/id_ed25519.pub user@<服务器IP>
 ```
+* 方法二：一行命令手动写入
+如果你无法直接使用 ssh-copy-id，可以用管道符远程写入：
+```bash
+cat ~/.ssh/id_rsa.pub | ssh user@your_vps_ip "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+```
 
-测试一下能不能用密钥登录成功。**确认能登录后**，再继续下一步。
+**注意:** 先别关当前的ssh窗口，新开一个ssh测试一下能不能用密钥登录成功。**确认能登录后**，再继续下一步。
 
 ### 修改 SSH 配置文件
 
